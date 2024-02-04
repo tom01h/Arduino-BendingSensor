@@ -104,3 +104,45 @@ HX711をプラバンに止めているのは1.2mm厚の両面テープ
 ↑をチューブでくるむと↓になる
 
 ![](w_tube.jpg)
+
+## 後処理
+
+実際にスキー場で使うとノイズとドリフトがひどいのでバンドパスフィルターで後処理します  
+後処理でドリフト消すなら温度補償いらなかったのでは？とも思いますが…
+
+```
+import numpy as np
+from scipy import signal
+from scipy import stats
+
+略
+
+    #バターワースフィルタ（バンドパス）
+    def bandpass(x, samplerate, fp, fs, gpass, gstop):
+        fn = samplerate / 2                               #ナイキスト周波数
+        wp = fp / fn                                      #ナイキスト周波数で通過域端周波数を正規化
+        ws = fs / fn                                      #ナイキスト周波数で阻止域端周波数を正規化
+        N, Wn = signal.buttord(wp, ws, gpass, gstop)      #オーダーとバターワースの正規化周波数を計算
+        b, a = signal.butter(N, Wn, "band")               #フィルタ伝達関数の分子と分母を計算
+        y = signal.filtfilt(b, a, x)                      #信号に対してフィルタをかける
+        return y
+
+
+略
+
+    samplerate = 10
+    gpass = 3    #通過域端最大損失[dB]
+    gstop = 40   #阻止域端最小損失[dB]
+
+    # バンドパス
+    fp = np.array([0.06, 1])   # 通過域端周波数[Hz]
+    fs = np.array([0.03, 2])   # 阻止域端周波数[Hz]
+    for i in range(6):
+        x=y[i]
+        y[i] = bandpass(x, samplerate, fp, fs, gpass, gstop)
+
+    # 正規化
+    for i in range(6):
+        x=y[i]
+        y[i] = stats.zscore(x)
+```
